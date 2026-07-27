@@ -1,5 +1,7 @@
-/* lvgl_rpi_panel.h - LVGL display binding for the Raspberry Pi 7" MIPI-DSI
- * panel (800x480 RGB565, RPiDisplay/LCDIFv2).
+/* lvgl_mipi_panel.h - LVGL display binding for a MIPI-DSI panel on the i.MX
+ * RT1176 (RGB565, MipiDisplay/LCDIFv2). Panel-neutral: the geometry comes from
+ * the DisplayClass instance and from the selected panel's panel_config.h, so
+ * this binding serves whichever panel MipiDisplay was built for.
  * SPDX-License-Identifier: MIT */
 #pragma once
 #include <Display.h>
@@ -18,7 +20,7 @@
  * shown half-old/half-new. Double buffering + a vsync flip is a later
  * milestone; do not bolt one on here without one.
  *
- * BUFFER OWNERSHIP: the framebuffer belongs to RPiDisplay -- it is allocated
+ * BUFFER OWNERSHIP: the framebuffer belongs to MipiDisplay -- it is allocated
  * and 64-byte-aligned by lcdifv2Begin() and is the scanout descriptor's base.
  * The caller neither supplies nor frees it, and must NOT call this before a
  * successful Display.begin(): framebuffer() is nullptr until then.
@@ -29,14 +31,14 @@
  * PRECONDITION (asserted, not merely documented): Display.begin() must have
  * succeeded. framebuffer() is nullptr until it does, and the geometry must
  * match the panel the static_asserts in the .cpp are written against. */
-lv_display_t *lvgl_rpi_panel_create(DisplayClass &display);
+lv_display_t *lvgl_mipi_panel_create(DisplayClass &display);
 
 /* True once a full screen refresh has been flushed. LATCHING and ONE-SHOT: set
  * by the last flush of the first full refresh and cleared only by another
  * create(). This is enough to sequence a gate ("has one frame rendered yet?")
  * and is NOT a per-frame completion signal -- a caller that needs one wants a
  * counter or a callback, not this. */
-bool lvgl_rpi_panel_frame_done();
+bool lvgl_mipi_panel_frame_done();
 
 /* Total pixel area handed to flush_cb since the last create(), summed over
  * every flush. This is the gate's evidence that LVGL actually invalidated and
@@ -50,4 +52,4 @@ bool lvgl_rpi_panel_frame_done();
  * care about has completed (see frame_done()) and not later. It is a plain
  * uint32_t and will eventually wrap; that is ~11k full-screen refreshes and it
  * is a diagnostic counter, so no saturation is attempted. */
-uint32_t lvgl_rpi_panel_flushed_px();
+uint32_t lvgl_mipi_panel_flushed_px();

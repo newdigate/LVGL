@@ -1,7 +1,7 @@
-/* lvgl_rpi_panel.cpp - see lvgl_rpi_panel.h.
+/* lvgl_mipi_panel.cpp - see lvgl_mipi_panel.h.
  * SPDX-License-Identifier: MIT */
 #include <Arduino.h>
-#include "lvgl_rpi_panel.h"
+#include "lvgl_mipi_panel.h"
 
 /* DIRECT mode makes LVGL address the scanout framebuffer with ITS OWN stride,
  * so these two assumptions are load-bearing in a way they are not for a
@@ -23,7 +23,7 @@ static bool s_frame_done = false;
 /* Same threading rationale as s_frame_done, hence also not volatile. */
 static uint32_t s_flushed_px = 0;
 
-static void rpi_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+static void mipi_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
     /* Nothing to transfer: px_map IS the live scanout buffer, and `area` is the
      * region LVGL already drew there. No copy, and deliberately no cache
@@ -52,7 +52,7 @@ static void rpi_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_
     lv_display_flush_ready(disp);
 }
 
-lv_display_t *lvgl_rpi_panel_create(DisplayClass &display)
+lv_display_t *lvgl_mipi_panel_create(DisplayClass &display)
 {
     /* Enforce the header's precondition rather than only documenting it: a
      * failed Display.begin() leaves framebuffer() null, and handing LVGL a null
@@ -68,10 +68,10 @@ lv_display_t *lvgl_rpi_panel_create(DisplayClass &display)
     s_flushed_px = 0;
     lv_display_t *disp = lv_display_create((int32_t)display.width(),
                                            (int32_t)display.height());
-    lv_display_set_flush_cb(disp, rpi_flush_cb);
+    lv_display_set_flush_cb(disp, mipi_flush_cb);
     /* Full-screen single buffer: DIRECT mode requires the buffer to be the
      * whole frame, and here it is the scanout buffer itself. PANEL_FB_BYTES is
-     * display_timing.h's name for this length -- the same one lcdifv2Begin()
+     * panel_config.h's name for this length -- the same one lcdifv2Begin()
      * allocates and strides the scanout descriptor by -- so it is used rather
      * than re-derived, which is also what keeps the two from drifting apart. */
     lv_display_set_buffers(disp, display.framebuffer(), nullptr, PANEL_FB_BYTES,
@@ -79,6 +79,6 @@ lv_display_t *lvgl_rpi_panel_create(DisplayClass &display)
     return disp;
 }
 
-bool lvgl_rpi_panel_frame_done() { return s_frame_done; }
+bool lvgl_mipi_panel_frame_done() { return s_frame_done; }
 
-uint32_t lvgl_rpi_panel_flushed_px() { return s_flushed_px; }
+uint32_t lvgl_mipi_panel_flushed_px() { return s_flushed_px; }
