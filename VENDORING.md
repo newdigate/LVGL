@@ -20,21 +20,31 @@ breaks the MIT/BSD-only guarantee this tree exists to uphold.
 - `lvgl/src/libs/vg_lite_driver/` — VeriSilicon VGLite kernel, dual-licensed
   (trips `tools/license-audit.sh` Part 1 on 5 files under `VGLiteKernel/`).
   RT1176 has no VGLite GPU, so it can never be linked here.
-- `lvgl/src/libs/frogfs/` — MPL-2.0 (weak copyleft). Unused.
+- `lvgl/src/libs/frogfs/` — MPL-2.0 (weak copyleft). Unused. Its licence header
+  is now detected by the gate: `tools/license-audit.sh` matches MPL as well as
+  GNU GPL/LGPL, and treats it as a failure.
 - `lvgl/libs/nema_gfx/` — 8 prebuilt static archives (2.6 MB) with **no licence
   text anywhere in the directory**. Two independent reasons to delete:
   1. They are opaque binaries, and the audit's Part 1 is a *source-header grep* —
      `grep -I` skips binary files entirely, so these would ship past the gate
      invisibly. In a tree whose premise is provable provenance, an unlicensed
      binary the firewall is structurally blind to is precisely what the firewall
-     exists to stop.
+     exists to stop. **The gate now closes this**: Part 1 additionally requires
+     every git-tracked `.a`/`.o`/`.so`/`.dylib`/`.lib` to carry licence text in
+     its own directory or one level up, and these archives carry none, so
+     re-vendoring them fails the audit with `UNLICENSED BINARY`.
   2. They are `cortex_m33` builds (`lib/core/cortex_m33_revC/`,
      `lib/core/cortex_m33_NemaPVG/`). RT1176 is Cortex-M7 + Cortex-M4, so they
      are unlinkable here by construction.
 
   Contrast `lvgl/src/libs/freetype/LiberationSans-Regular.ttf`, which is also a
   binary the grep cannot read but ships `LiberationSans-LICENSE.txt` right
-  beside it — that one is fine and is retained.
+  beside it — that one is fine and is retained. The gate encodes that same
+  distinction: the rule is *binaries without provenance*, not *no binaries*.
+  Note it deliberately stops at one level up rather than walking to the repo
+  root — `lvgl/LICENCE.txt` is an ancestor of `lvgl/libs/nema_gfx/`, and a
+  root-to-leaf walk would have excused the very archives that motivated the
+  check.
 
 ### These prunes delete code that `src/` still references
 
@@ -56,10 +66,21 @@ is not a config change; it is a missing-source build failure, because the code i
 needs was deliberately deleted for licence reasons. Do not "fix" such a failure
 by restoring the directory.
 
-Note also that the audit's copyleft regex matches GNU GPL/LGPL only. It does
-**not** flag MPL-2.0, and it cannot see inside binaries at all. The frogfs and
-nema_gfx prunes are therefore policy that a human must re-apply — the gate will
-not catch them for you on re-vendor.
+## Retained with a written justification: the one MPL file
+
+`lvgl/src/libs/thorvg/tvgLottieInterpolator.cpp` is MIT-headered ThorVG code
+that embeds one MPL-2.0 snippet (the Firefox cubic-bezier solver) inside
+`#if LV_USE_THORVG_INTERNAL`, which is 0. Since the audit now flags MPL, this
+file is named on the `ALLOW` list in `tools/license-audit.sh` with that
+reasoning, rather than passing unnoticed. It is not compiled: `evkb.cmake` globs
+`lvgl/src/*.c` only and deliberately never `*.cpp`, which is what all 47 thorvg
+files are. Because the allowlisted path is a `.cpp`, the audit's Part 2 holds it
+to the empty-object rule — so enabling thorvg would *fail the audit* rather than
+quietly link MPL code.
+
+It survives re-vendoring by path, so no action is needed on re-vendor unless
+upstream moves or renames the file (in which case the audit fails loudly and the
+`ALLOW` entry must be updated, not deleted).
 
 ## Pruned on vendoring — SIZE (do not restore)
 
@@ -108,8 +129,13 @@ retained for reference and for upstream fidelity, not because it is built.
    version.
 4. Run `rt1176-evkb/tools/license-audit.sh` — it MUST pass with no new `ALLOW`
    entries. If new copyleft files appear, prune them; do not allowlist them.
-   Remember the gate cannot see MPL or binaries: also re-check by hand for new
-   prebuilt archives and for licence-less binary blobs.
+   The gate now covers MPL-2.0 and unlicensed prebuilt binaries as well as
+   GPL/LGPL, so a re-vendor that restores `frogfs/` or `nema_gfx/` fails rather
+   than needing a human to remember. It is still a *tracked-source* check: it
+   says nothing about a binary whose adjacent licence text is present but
+   unacceptable, so read any new licence file the audit accepts.
+   (`tools/license-audit.test.sh` is the negative-test suite proving both checks
+   actually fire; run it after touching the audit.)
 5. Confirm `LV_USE_DRAW_VG_LITE`, `LV_USE_FS_FROGFS` and `LV_USE_NEMA_GFX` are
    still 0 in `port/lv_conf.h`.
 6. Re-record the golden `LVGL_SUM` values in the example gates — a renderer or
