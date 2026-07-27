@@ -112,6 +112,12 @@ retained for reference and for upstream fidelity, not because it is built.
    prebuilt archives and for licence-less binary blobs.
 5. Confirm `LV_USE_DRAW_VG_LITE`, `LV_USE_FS_FROGFS` and `LV_USE_NEMA_GFX` are
    still 0 in `port/lv_conf.h`.
-6. *(Forward-looking — not yet in place.)* Once the example gates exist, re-record
-   their golden `LVGL_SUM` values; a renderer or font change legitimately changes
-   them. See each `run_qemu.sh`.
+6. Re-record the golden `LVGL_SUM` values in the example gates — a renderer or
+   font change legitimately changes them:
+   - `examples/display/lvgl_ili9341_test/run_qemu.sh` — currently `0xA087211C`.
+     This one is corroborated by a human eye on real glass, and the silicon
+     checksum matched the QEMU value bit-for-bit, so re-recording it means
+     re-confirming the picture on hardware, not just re-running the gate.
+   - `examples/display/lvgl_rpi_panel_test/run_qemu.sh` — currently `0xB220E6E4`.
+     That panel is not currently connected, so this golden pins reproducibility
+     only; it has never been checked against a real picture.

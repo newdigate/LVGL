@@ -23,10 +23,17 @@ as an Arduino-style library for the
   - `lvgl_rt1176_assert.h` — the `LV_ASSERT_HANDLER` hook, so an LVGL assertion
     emits a UART token instead of hanging silently.
 
-  Still to come: the display bindings for the Raspberry Pi 7" MIPI-DSI panel and
-  the ILI9341 SPI panel. Those are deliberately *not* compiled into the `LVGL`
-  target — each example compiles the one binding it needs, so an ILI9341 sketch
-  never pulls in RPiDisplay.
+  - `lvgl_ili9341.{h,cpp}` — ILI9341 (320×240, SPI) binding: partial render mode,
+    each slice blitted with `writeRect`. **Hardware-verified on real glass.**
+  - `lvgl_rpi_panel.{h,cpp}` — Raspberry Pi 7" MIPI-DSI (800×480) binding: DIRECT
+    render straight into the live LCDIFv2 scanout framebuffer, so there is no
+    per-frame blit. v1 accepts tearing. **QEMU-gated only — not yet confirmed on
+    glass**, so its golden checksum pins reproducibility, not correctness.
+
+  The two bindings are deliberately *not* compiled into the `LVGL` target — each
+  example compiles the one binding it needs, so an ILI9341 sketch never pulls in
+  RPiDisplay. They share conventions but no code: PARTIAL-plus-blit and
+  DIRECT-into-live-scanout differ in kind, so no common abstraction was extracted.
 
 ## Consuming it
 
