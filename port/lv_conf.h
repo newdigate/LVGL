@@ -27,6 +27,8 @@
  * Already at the required value in the template, listed so a future template
  * bump is checked against them: LV_COLOR_DEPTH 16, LV_USE_OS LV_OS_NONE,
  * LV_FONT_MONTSERRAT_14 1, LV_USE_LOG 0, LV_USE_ASSERT_NULL 1,
+ * LV_DRAW_BUF_STRIDE_ALIGN 1 (the display bindings flush w*h*2 contiguous
+ * bytes; a padded stride would skew the blit -- they static_assert on it),
  * LV_USE_ASSERT_MALLOC 1, every LV_USE_FS_* 0, LV_USE_THORVG_INTERNAL 0
  * (thorvg is .cpp-only and is never globbed by import_evkb_lvgl()).
  *============================================================================*/
