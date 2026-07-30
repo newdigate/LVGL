@@ -91,6 +91,7 @@ uint32_t lvgl_mipi_panel_flushed_px() { return s_flushed_px; }
  *                        (timeout abandon ONLY)
  *   s_db_scanned_fb      --                       set (retire)
  *   s_db_isr_retires     --                       increment
+ *   s_db_retires_consumed increment (flip_sync)   --
  *   s_db_flips           increment (flush_cb)     --
  *   s_db_vsyncs          increment (flip_sync)    --
  *   s_db_vsync_timeouts  increment (flip_sync)    --
@@ -103,6 +104,7 @@ uint32_t lvgl_mipi_panel_flushed_px() { return s_flushed_px; }
 static const uint16_t *volatile s_db_pending_fb = nullptr;
 static const uint16_t *volatile s_db_scanned_fb = nullptr;
 static volatile uint32_t s_db_isr_retires = 0;
+static uint32_t s_db_retires_consumed = 0;   /* thread-side; lags isr_retires */
 static uint32_t s_db_flips = 0, s_db_vsyncs = 0, s_db_vsync_timeouts = 0;
 
 /* INTERRUPT CONTEXT.  Flag work only: retire the pending flip.  Runs on
@@ -121,19 +123,31 @@ static void db_vsync_isr()
 
 void lvgl_mipi_panel_flip_sync()
 {
-    if (s_db_pending_fb == nullptr) return;
-    /* Bounded wait on the ISR-retired flag -- v4's 40 ms bound, degraded
-     * mode and counters survive the ISR migration unchanged; only the thing
-     * polled moved from the device register into RAM the ISR owns. */
-    const uint32_t t0 = micros();
-    while (s_db_pending_fb != nullptr) {
-        if ((uint32_t)(micros() - t0) > 40000u) {
-            s_db_vsync_timeouts++;
-            s_db_pending_fb = nullptr;   /* thread-side abandon; see table */
-            return;
+    if (s_db_pending_fb != nullptr) {
+        /* Bounded wait on the ISR retire -- v4's 40 ms bound, degraded mode
+         * and counters survive the ISR migration unchanged; only the thing
+         * polled moved from the device register into RAM the ISR owns. */
+        const uint32_t t0 = micros();
+        while (s_db_pending_fb != nullptr) {
+            if ((uint32_t)(micros() - t0) > 40000u) {
+                s_db_vsync_timeouts++;
+                s_db_pending_fb = nullptr;   /* thread-side abandon; see table */
+                return;
+            }
         }
     }
-    s_db_vsyncs++;
+    /* Consume the ISR-set retire -- STICKY, exactly as v4's latched
+     * INT_STATUS read was: the ISR retires the flip the moment vsync fires,
+     * and this wait may run a whole refresh later (LVGL calls flush_wait_cb
+     * only when it next needs the buffer).  A late consume still counts the
+     * landing; without this, s_db_vsyncs would count only waits that
+     * happened to catch the flip in flight (MEASURED: the gate's VSYNCS pin
+     * read 3 -- the example's explicit syncs -- against ISR_RETIRES=120).
+     * consumed is thread-owned, isr_retires ISR-owned: single writer each. */
+    if (s_db_retires_consumed != s_db_isr_retires) {
+        s_db_retires_consumed++;
+        s_db_vsyncs++;
+    }
 }
 
 static void db_flush_wait_cb(lv_display_t *disp)
@@ -190,6 +204,7 @@ lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display)
     s_db_pending_fb = nullptr;
     s_db_scanned_fb = nullptr;
     s_db_isr_retires = 0;
+    s_db_retires_consumed = 0;
     s_db_flips = s_db_vsyncs = s_db_vsync_timeouts = 0;
 
     lv_display_t *disp = lv_display_create((int32_t)display.width(),
