@@ -78,7 +78,11 @@ lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display);
  *   vsyncs          vsync events consumed waiting for flips to land
  *   vsync_timeouts  waits that gave up (2 frame periods) -- 0 on any healthy
  *                   run; a non-zero value means vsync is dead and the gate
- *                   must go red on it rather than hang. */
+ *                   must go red on it rather than hang.  DEGRADED MODE, made
+ *                   explicit: after a timeout the pending flip is abandoned
+ *                   and subsequent frames render UNFENCED -- v1 single-buffer
+ *                   behaviour (tearing possible, no corruption) until vsync
+ *                   recovers.  The counter is the only witness. */
 uint32_t lvgl_mipi_panel_flips();
 uint32_t lvgl_mipi_panel_vsyncs();
 uint32_t lvgl_mipi_panel_vsync_timeouts();
