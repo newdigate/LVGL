@@ -1,6 +1,7 @@
 /* lvgl_mipi_panel.cpp - see lvgl_mipi_panel.h.
  * SPDX-License-Identifier: MIT */
 #include <Arduino.h>
+#include <lcdifv2.h>
 #include "lvgl_mipi_panel.h"
 
 /* DIRECT mode makes LVGL address the scanout framebuffer with ITS OWN stride,
@@ -82,3 +83,85 @@ lv_display_t *lvgl_mipi_panel_create(DisplayClass &display)
 bool lvgl_mipi_panel_frame_done() { return s_frame_done; }
 
 uint32_t lvgl_mipi_panel_flushed_px() { return s_flushed_px; }
+
+/* --- v4 double-buffer state (same no-volatile rationale as above) --------- */
+static const uint16_t *s_db_pending_fb = nullptr; /* flip issued, not landed  */
+static const uint16_t *s_db_scanned_fb = nullptr; /* what the panel shows now */
+static uint32_t s_db_flips = 0, s_db_vsyncs = 0, s_db_vsync_timeouts = 0;
+
+void lvgl_mipi_panel_flip_sync()
+{
+    if (!s_db_pending_fb) return;
+    /* Bounded: two frame periods at 58.7 Hz is ~34 ms; a vsync that has not
+     * arrived by then is dead, and hanging here would eat the gate's timeout
+     * with no token.  The counter is the loud part (spec open question 2). */
+    const uint32_t t0 = micros();
+    while (!lcdifv2VsyncSeen()) {
+        if ((uint32_t)(micros() - t0) > 40000u) {
+            s_db_vsync_timeouts++;
+            s_db_pending_fb = nullptr;   /* stop re-waiting on a dead line */
+            return;
+        }
+    }
+    s_db_vsyncs++;
+    s_db_scanned_fb = s_db_pending_fb;
+    s_db_pending_fb = nullptr;
+}
+
+static void db_flush_wait_cb(lv_display_t *disp)
+{
+    (void)disp;
+    lvgl_mipi_panel_flip_sync();
+}
+
+static void db_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+{
+    s_flushed_px += (uint32_t)lv_area_get_size(area);
+    if (lv_display_flush_is_last(disp)) {
+        /* px_map is the FRAME BASE in DIRECT mode (fact: NXP's port hands
+         * color_p straight to setFrameBuffer, lvgl_support.c:426-434) -- the
+         * buffer LVGL just finished rendering, which becomes the new front.
+         *
+         * ORDER: FlipTo BEFORE VsyncArm.  If a vsync lands between the two,
+         * the flip latched at it and we merely wait one extra frame -- safe.
+         * Arming first would let a vsync in the gap satisfy the wait while
+         * the flip had NOT latched: a render into live scanout, the exact
+         * bug this binding exists to prevent. */
+        lcdifv2FlipTo((const uint16_t *)px_map);
+        lcdifv2VsyncArm();
+        s_db_pending_fb = (const uint16_t *)px_map;
+        s_db_flips++;
+        s_frame_done = true;
+    }
+    lv_display_flush_ready(disp);
+}
+
+lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display)
+{
+    LV_ASSERT_NULL(display.framebuffer());   /* Display.begin() must have succeeded */
+    LV_ASSERT(display.width() == PANEL_WIDTH && display.height() == PANEL_HEIGHT);
+
+    uint16_t *alt = lcdifv2AllocAltFramebuffer();
+    LV_ASSERT_NULL(alt);                     /* no silent single-buffer fallback */
+
+    s_frame_done = false;
+    s_flushed_px = 0;
+    s_db_pending_fb = nullptr;
+    s_db_scanned_fb = nullptr;
+    s_db_flips = s_db_vsyncs = s_db_vsync_timeouts = 0;
+
+    lv_display_t *disp = lv_display_create((int32_t)display.width(),
+                                           (int32_t)display.height());
+    lv_display_set_flush_cb(disp, db_flush_cb);
+    lv_display_set_flush_wait_cb(disp, db_flush_wait_cb);
+    /* buf1 = ALT (LVGL renders it first), buf2 = the live scanout buffer.
+     * See the header: this order is load-bearing. */
+    lv_display_set_buffers(disp, alt, display.framebuffer(), PANEL_FB_BYTES,
+                           LV_DISPLAY_RENDER_MODE_DIRECT);
+    return disp;
+}
+
+uint32_t lvgl_mipi_panel_flips()          { return s_db_flips; }
+uint32_t lvgl_mipi_panel_vsyncs()         { return s_db_vsyncs; }
+uint32_t lvgl_mipi_panel_vsync_timeouts() { return s_db_vsync_timeouts; }
+const uint16_t *lvgl_mipi_panel_scanned_fb() { return s_db_scanned_fb; }
