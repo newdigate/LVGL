@@ -78,7 +78,13 @@ static void gt911_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
             s_point.y = (int32_t)((uint32_t)pts[0].y * (uint32_t)s_ver
                                   / s_touch->resolutionY());
         }
-        /* s_wait_clear && Contacts: surviving fingers are ignored entirely. */
+        /* s_wait_clear && Contacts: surviving fingers are ignored entirely.
+         * Re-adoption re-arms ONLY on Released, and that is exact, not an
+         * approximation: the driver classifies a fresh zero-contact buffer as
+         * Released, never as Contacts (see gt911.h -- "a fresh buffer carrying
+         * ZERO contacts"), and with maxPoints = 5 a Contacts result always
+         * delivers n >= 1.  So "until the panel reports clear" and "until a
+         * Released poll" are the same condition at this seam. */
         break;
     }
 
