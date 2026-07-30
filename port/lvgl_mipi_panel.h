@@ -95,9 +95,10 @@ uint32_t lvgl_mipi_panel_vsync_timeouts();
  * deliberately not counted. */
 uint32_t lvgl_mipi_panel_vsync_isrs();
 
-/* The buffer the panel is scanning after the last landed flip (the pointer
- * handed to the last lcdifv2FlipTo whose vsync was consumed), or nullptr
- * before the first flip lands.  The flip test checksums exactly this. */
+/* The buffer the panel is scanning after the last RETIRED flip (set by the
+ * vsync ISR at the latch, independent of when -- or whether -- the wait path
+ * consumes that landing), or nullptr before the first flip lands.  The flip
+ * test checksums exactly this. */
 const uint16_t *lvgl_mipi_panel_scanned_fb();
 
 /* Block until the pending flip has landed (bounded: two frame periods).

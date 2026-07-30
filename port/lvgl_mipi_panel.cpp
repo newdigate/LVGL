@@ -115,6 +115,21 @@ static void db_vsync_isr()
 {
     const uint16_t *p = s_db_pending_fb;
     if (p) {
+        /* Retire ONLY a flip that has actually LATCHED.  The v5 final review
+         * found the window this guards: IRQ propagation from the LCDIFv2 to
+         * the NVIC takes tens of cycles at 996 MHz, so a vsync that fired
+         * BEFORE FlipTo's writes landed can deliver its interrupt AFTER the
+         * pending store -- and an unguarded retire would wave through a flip
+         * that latches only at the NEXT vsync: one frame rendered into live
+         * scanout, the exact hazard this fence exists to prevent, at ~1e-5
+         * per flip, invisible to every counter and both gates.  The hardware
+         * itself answers "did it latch": SHADOW_LOAD_EN self-clears exactly
+         * when the load happens (the QEMU model matches), and the Device-
+         * memory read is ordered after the thread's posted FlipTo writes.
+         * A stale-vsync ISR sees the bit still set, skips, and the retire
+         * happens at the next (real) latch vsync -- one extra frame of wait,
+         * never a false pass, now WITH the guard that makes that claim true. */
+        if (!lcdifv2FlipLatched()) return;
         s_db_scanned_fb = p;
         s_db_pending_fb = nullptr;
         s_db_isr_retires++;
