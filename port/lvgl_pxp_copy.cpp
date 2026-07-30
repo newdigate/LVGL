@@ -8,6 +8,7 @@
 static lv_draw_buf_copy_cb_t s_default_copy = nullptr;
 static uint32_t s_pxp_copies   = 0;
 static uint32_t s_fallbacks    = 0;
+static uint32_t s_pxp_errors   = 0;   /* subset of fallbacks: the PXP itself failed */
 static uint32_t s_threshold_px = 0;
 
 /* True when `area` lies fully inside `buf` and the buffer's stride can carry
@@ -78,6 +79,14 @@ static void pxp_copy_cb(lv_draw_buf_t *dest, const lv_area_t *dest_area,
      * unreachable, config, AXI, timeout -- run the default copy anyway:
      * degraded loud (the counter), correct always (the CPU copy runs). */
     if (PXP.blit(ssrc, sdst) != PXP_OK) {
+        /* Counted APART from shape fallbacks: a dying PXP should be loud by
+         * name, not a drifting ratio -- adopting gates pin PXP_ERRORS=0.  On
+         * PXP_ERR_TIMEOUT specifically the library returns with the op still
+         * enabled; a pathologically late completion could in principle write
+         * after the CPU copy below, but a blit that missed the 100 ms cap is
+         * hung in practice and every later call lands here as PXP_ERR_BUSY:
+         * a permanent, visible CPU fallback.  (v6 final review, items 3-4.) */
+        s_pxp_errors++;
         s_fallbacks++;
         s_default_copy(dest, dest_area, src, src_area);
         return;
@@ -102,3 +111,4 @@ void lvgl_pxp_copy_install(uint32_t threshold_px)
 
 uint32_t lvgl_pxp_copies()        { return s_pxp_copies; }
 uint32_t lvgl_pxp_copy_fallbacks() { return s_fallbacks; }
+uint32_t lvgl_pxp_copy_errors()    { return s_pxp_errors; }

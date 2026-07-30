@@ -40,3 +40,7 @@ void lvgl_pxp_copy_install(uint32_t threshold_px);
  * idiom) so the handler being silently dead cannot pass as adopted. */
 uint32_t lvgl_pxp_copies();
 uint32_t lvgl_pxp_copy_fallbacks();
+/* The subset of fallbacks caused by a PXP ERROR (vs a shape that was never
+ * eligible).  0 on any healthy run; adopting gates pin it so a dying PXP is
+ * loud by name rather than a drifting fallback ratio. */
+uint32_t lvgl_pxp_copy_errors();
