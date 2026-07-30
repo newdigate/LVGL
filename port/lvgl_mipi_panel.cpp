@@ -84,28 +84,56 @@ bool lvgl_mipi_panel_frame_done() { return s_frame_done; }
 
 uint32_t lvgl_mipi_panel_flushed_px() { return s_flushed_px; }
 
-/* --- v4 double-buffer state (same no-volatile rationale as above) --------- */
-static const uint16_t *s_db_pending_fb = nullptr; /* flip issued, not landed  */
-static const uint16_t *s_db_scanned_fb = nullptr; /* what the panel shows now */
+/* --- v5: ISR-signalled flip fence -----------------------------------------
+ * OWNERSHIP TABLE -- single writer per field, and it is the design:
+ *   field                thread writes            ISR writes
+ *   s_db_pending_fb      set (flush_cb), clear    clear (retire)
+ *                        (timeout abandon ONLY)
+ *   s_db_scanned_fb      --                       set (retire)
+ *   s_db_isr_retires     --                       increment
+ *   s_db_flips           increment (flush_cb)     --
+ *   s_db_vsyncs          increment (flip_sync)    --
+ *   s_db_vsync_timeouts  increment (flip_sync)    --
+ * Pointer stores are naturally atomic on ARMv7-M (aligned 32-bit).  The one
+ * dual-writer field is pending_fb, and its two clears cannot both matter:
+ * the timeout abandon runs 40 ms after the set, and an ISR retire racing
+ * that exact store either wins (flip landed; the timeout tick miscounts one
+ * "timeout" against a landed flip -- self-describing next to a healthy
+ * s_db_isr_retires) or loses (true abandon).  Neither corrupts a pointer. */
+static const uint16_t *volatile s_db_pending_fb = nullptr;
+static const uint16_t *volatile s_db_scanned_fb = nullptr;
+static volatile uint32_t s_db_isr_retires = 0;
 static uint32_t s_db_flips = 0, s_db_vsyncs = 0, s_db_vsync_timeouts = 0;
+
+/* INTERRUPT CONTEXT.  Flag work only: retire the pending flip.  Runs on
+ * EVERY vsync (~60 Hz) once create_db has attached it; the retire fires only
+ * when a flip is pending, and s_db_isr_retires counts RETIRES -- one per
+ * flip, deterministic -- not ISR entries, which are runtime-dependent. */
+static void db_vsync_isr()
+{
+    const uint16_t *p = s_db_pending_fb;
+    if (p) {
+        s_db_scanned_fb = p;
+        s_db_pending_fb = nullptr;
+        s_db_isr_retires++;
+    }
+}
 
 void lvgl_mipi_panel_flip_sync()
 {
-    if (!s_db_pending_fb) return;
-    /* Bounded: two frame periods at 58.7 Hz is ~34 ms; a vsync that has not
-     * arrived by then is dead, and hanging here would eat the gate's timeout
-     * with no token.  The counter is the loud part (spec open question 2). */
+    if (s_db_pending_fb == nullptr) return;
+    /* Bounded wait on the ISR-retired flag -- v4's 40 ms bound, degraded
+     * mode and counters survive the ISR migration unchanged; only the thing
+     * polled moved from the device register into RAM the ISR owns. */
     const uint32_t t0 = micros();
-    while (!lcdifv2VsyncSeen()) {
+    while (s_db_pending_fb != nullptr) {
         if ((uint32_t)(micros() - t0) > 40000u) {
             s_db_vsync_timeouts++;
-            s_db_pending_fb = nullptr;   /* stop re-waiting on a dead line */
+            s_db_pending_fb = nullptr;   /* thread-side abandon; see table */
             return;
         }
     }
     s_db_vsyncs++;
-    s_db_scanned_fb = s_db_pending_fb;
-    s_db_pending_fb = nullptr;
 }
 
 static void db_flush_wait_cb(lv_display_t *disp)
@@ -130,15 +158,12 @@ static void db_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_m
     if (lv_display_flush_is_last(disp)) {
         /* px_map is the FRAME BASE in DIRECT mode (fact: NXP's port hands
          * color_p straight to setFrameBuffer, lvgl_support.c:426-434) -- the
-         * buffer LVGL just finished rendering, which becomes the new front.
-         *
-         * ORDER: FlipTo BEFORE VsyncArm.  If a vsync lands between the two,
-         * the flip latched at it and we merely wait one extra frame -- safe.
-         * Arming first would let a vsync in the gap satisfy the wait while
-         * the flip had NOT latched: a render into live scanout, the exact
-         * bug this binding exists to prevent. */
+         * buffer LVGL just finished rendering, which becomes the new front. */
         lcdifv2FlipTo((const uint16_t *)px_map);
-        lcdifv2VsyncArm();
+        /* Pending-store AFTER FlipTo, same conservative direction as v4's
+         * FlipTo-before-Arm: a vsync in the gap means the ISR sees no
+         * pending flip and the retire lands one frame later -- an extra
+         * frame of wait, never a false pass. */
         s_db_pending_fb = (const uint16_t *)px_map;
         s_db_flips++;
         s_frame_done = true;
@@ -164,6 +189,7 @@ lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display)
     s_flushed_px = 0;
     s_db_pending_fb = nullptr;
     s_db_scanned_fb = nullptr;
+    s_db_isr_retires = 0;
     s_db_flips = s_db_vsyncs = s_db_vsync_timeouts = 0;
 
     lv_display_t *disp = lv_display_create((int32_t)display.width(),
@@ -174,10 +200,14 @@ lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display)
      * See the header: this order is load-bearing. */
     lv_display_set_buffers(disp, alt, display.framebuffer(), PANEL_FB_BYTES,
                            LV_DISPLAY_RENDER_MODE_DIRECT);
+    /* Attach LAST, after all state is initialised -- the ISR runs from the
+     * next vsync on. */
+    lcdifv2AttachVsyncInterrupt(db_vsync_isr);
     return disp;
 }
 
 uint32_t lvgl_mipi_panel_flips()          { return s_db_flips; }
 uint32_t lvgl_mipi_panel_vsyncs()         { return s_db_vsyncs; }
 uint32_t lvgl_mipi_panel_vsync_timeouts() { return s_db_vsync_timeouts; }
-const uint16_t *lvgl_mipi_panel_scanned_fb() { return s_db_scanned_fb; }
+uint32_t lvgl_mipi_panel_vsync_isrs()     { return s_db_isr_retires; }
+const uint16_t *lvgl_mipi_panel_scanned_fb() { return (const uint16_t *)s_db_scanned_fb; }

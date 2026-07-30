@@ -54,14 +54,17 @@ bool lvgl_mipi_panel_frame_done();
  * is a diagnostic counter, so no saturation is attempted. */
 uint32_t lvgl_mipi_panel_flushed_px();
 
-/* --- v4: double-buffered create ------------------------------------------
+/* --- v4/v5: double-buffered create ---------------------------------------
  * Two framebuffers; LVGL renders off-screen and the LCDIFv2 flips at vsync.
  * LVGL ITSELF keeps the buffers coherent (refr_sync_areas, lv_refr.c:647)
  * -- this binding only supplies the second buffer and the flip.
  *
  * THE INVARIANT: LVGL never renders into a buffer the panel is scanning.
  * It holds because rendering waits on flush_wait_cb, and flush_wait_cb
- * returns only after the vsync at which the pending flip latched.
+ * returns only once the pending flip has been RETIRED BY THE VSYNC ISR:
+ * the fence is ISR-signalled (create_db attaches a handler via
+ * lcdifv2AttachVsyncInterrupt), and the bounded polled wait in flip_sync
+ * is merely the consumer of the RAM flag the ISR clears.
  *
  * BUFFER ORDER IS LOAD-BEARING: LVGL renders into buf1 FIRST
  * (lv_display.c:449), and the panel is scanning display.framebuffer() when
@@ -86,6 +89,11 @@ lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display);
 uint32_t lvgl_mipi_panel_flips();
 uint32_t lvgl_mipi_panel_vsyncs();
 uint32_t lvgl_mipi_panel_vsync_timeouts();
+
+/* Flips retired BY THE ISR -- one per flip, deterministic; raw ISR entries
+ * are runtime-dependent (the ISR runs on every ~60 Hz vsync) and are
+ * deliberately not counted. */
+uint32_t lvgl_mipi_panel_vsync_isrs();
 
 /* The buffer the panel is scanning after the last landed flip (the pointer
  * handed to the last lcdifv2FlipTo whose vsync was consumed), or nullptr
