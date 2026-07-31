@@ -78,6 +78,11 @@ static void pxp_copy_cb(lv_draw_buf_t *dest, const lv_area_t *dest_area,
         h == lv_area_get_height(src_area) &&
         h >= 2 &&
         (uint32_t)w * (uint32_t)h >= s_threshold_px &&
+        /* PXPSurface's pitch is uint16_t: a stride past 65535 (a >16383-px
+         * XRGB8888 buffer) would truncate SILENTLY at the casts below --
+         * unreachable with this board's panels, but this is a GLOBAL LVGL
+         * handler, so guard rather than assume (v7 quality review). */
+        dest->header.stride <= 0xFFFFu && src->header.stride <= 0xFFFFu &&
         area_fits(dest, dest_area, bpp) && area_fits(src, src_area, bpp);
 
     if (!shape_ok) {
