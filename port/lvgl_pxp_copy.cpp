@@ -62,12 +62,13 @@ static void pxp_copy_cb(lv_draw_buf_t *dest, const lv_area_t *dest_area,
 
     /* Accelerated shape -- ALL required; anything else chains to the saved
      * default.  The height >= 2 check is the load-bearing one: the v7 bench
-     * (lvgl_pxp_copy_bench transcript_hw_evkb.txt) holds it for BOTH formats
-     * -- every multi-row case wins the PXP 5.4x-16.5x at XRGB8888 (2x-21x at
-     * RGB565); the single-row case (719x1) is the CPU's one win at RGB565
-     * (70 vs 105 us) but only a dead TIE at XRGB8888 (135 vs 135 us), so the
-     * rule stays conservative and chains single-row copies to the CPU at
-     * both formats. */
+     * (lvgl_pxp_copy_bench transcript_hw_evkb.txt, ANALYSIS point 1) holds it
+     * for BOTH formats -- every multi-row case wins the PXP, 3.4x-26.5x at
+     * XRGB8888 (~13.4x for the bulk copies) and 2x-21x at RGB565; the
+     * single-row case (719x1) is the CPU's one win at RGB565 (70 vs 105 us)
+     * but only a dead TIE at XRGB8888 (135 vs 135 us), so the rule stays
+     * conservative and chains single-row copies to the CPU at both
+     * formats. */
     const uint32_t bpp = fmt_bpp((lv_color_format_t)dest->header.cf);
     const bool shape_ok =
         dest->data && src->data &&

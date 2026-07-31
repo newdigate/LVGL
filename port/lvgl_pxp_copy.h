@@ -17,12 +17,13 @@
  *   - RGB565 or XRGB8888, source and dest the same format, dest_area and
  *     src_area the same size,
  *   - copy height >= 2 ROWS -- the LOAD-BEARING check.  The v7 bench
- *     (examples/display/lvgl_pxp_copy_bench/transcript_hw_evkb.txt) holds
- *     this for BOTH formats: every multi-row case wins the PXP 5.4x-16.5x at
- *     XRGB8888 (5.4x-21x at RGB565); the single-row case (719x1) is the
- *     CPU's one win at RGB565 (70 vs 105 us) but only a dead tie at XRGB8888
- *     (135 vs 135 us).  The discriminator is height, not area: 1x1280 (1280
- *     one-pixel rows) still wins 2x on the PXP.
+ *     (examples/display/lvgl_pxp_copy_bench/transcript_hw_evkb.txt, ANALYSIS
+ *     point 1) holds this for BOTH formats: every multi-row case wins the
+ *     PXP, 3.4x-26.5x at XRGB8888 (~13.4x for the bulk copies) and 2x-21x at
+ *     RGB565; the single-row case (719x1) is the CPU's one win at RGB565
+ *     (70 vs 105 us) but only a dead tie at XRGB8888 (135 vs 135 us).  The
+ *     discriminator is height, not area: 1x1280 (1280 one-pixel rows) still
+ *     wins 2x on the PXP.
  *   - copy area >= threshold_px (belt-and-braces floor under the height rule;
  *     cite the bench at the call site),
  *   - both strides sane (>= the buffer's row bytes at the format's pixel
