@@ -14,17 +14,25 @@
  * (lv_draw_buf_get_handlers()).  Saves the default CPU copy and CHAINS to it:
  * anything that is not the exact accelerated shape falls through -- never a
  * silent wrong copy.  The accelerated shape is ALL of:
- *   - RGB565 on both sides, dest_area and src_area the same size,
- *   - copy height >= 2 ROWS -- the LOAD-BEARING check.  The bench
- *     (examples/display/lvgl_pxp_copy_bench/transcript_hw_evkb.txt, ANALYSIS
- *     point 3) measured the PXP winning 13 of 14 cases, 5.4x-21x; its one
- *     loss was the single-row case (719x1: 70 us CPU vs 105 us PXP).  The
- *     discriminator is height, not area: 1x1280 (1280 one-pixel rows) still
- *     wins 2x on the PXP.
+ *   - RGB565 or XRGB8888, source and dest the same format, dest_area and
+ *     src_area the same size,
+ *   - copy height >= 2 ROWS -- the LOAD-BEARING check.  The v7 bench
+ *     (examples/display/lvgl_pxp_copy_bench/transcript_hw_evkb.txt) holds
+ *     this for BOTH formats: every multi-row case wins the PXP 5.4x-16.5x at
+ *     XRGB8888 (5.4x-21x at RGB565); the single-row case (719x1) is the
+ *     CPU's one win at RGB565 (70 vs 105 us) but only a dead tie at XRGB8888
+ *     (135 vs 135 us).  The discriminator is height, not area: 1x1280 (1280
+ *     one-pixel rows) still wins 2x on the PXP.
  *   - copy area >= threshold_px (belt-and-braces floor under the height rule;
  *     cite the bench at the call site),
- *   - both strides sane (>= the buffer's row bytes), both data pointers
- *     non-null, the areas inside their buffers.
+ *   - both strides sane (>= the buffer's row bytes at the format's pixel
+ *     size), both data pointers non-null, the areas inside their buffers.
+ * MEASURED 32-BIT CONTRACT (same transcript): at XRGB8888 the PXP copies the
+ * RGB bytes exactly but writes the X byte as its computed alpha, which is 0
+ * with the alpha engine unconfigured -- NOT a byte-preserving copy of that
+ * byte.  Harmless for XRGB (LVGL, LCDIFv2 and the 24-bit DSI wire all ignore
+ * it, and QEMU's model writes the same 0), but the reason ARGB8888 (where
+ * that byte is meaningful) is deliberately excluded above.
  * There is deliberately NO reachability pre-check here: the framebuffer
  * allocator's extmem/SDRAM buffers qualify, and a genuinely unreachable
  * surface comes back from the PXP as an error, which chains to the CPU
