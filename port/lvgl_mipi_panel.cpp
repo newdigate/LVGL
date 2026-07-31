@@ -21,13 +21,18 @@ static_assert(PANEL_PITCH_BYTES == PANEL_WIDTH * (LV_COLOR_DEPTH / 8u),
               "direct render draws at LVGL's own stride; a padded panel pitch "
               "would skew every line and must be handled explicitly");
 
-/* Link-time depth probes (see lvgl_rt1176.h / lcdifv2.h): referencing the
- * symbols for THIS translation unit's values makes a cross-library depth
- * mismatch an undefined reference at link time. */
-static const void *const s_depth_probes[] __attribute__((used)) = {
-    (const void *)&LV_DEPTH_PROBE(LV_COLOR_DEPTH),
-    (const void *)&PANEL_BPP_PROBE(PANEL_BYTES_PER_PIXEL),
-};
+/* Link-time depth probes (lvgl_rt1176.h / lcdifv2.h): referencing the
+ * symbols for THIS translation unit's values from live code makes a
+ * cross-library depth mismatch an undefined reference at link time.
+ * File-scope data cannot carry the reference on this toolchain --
+ * --gc-sections discards an unreferenced .rodata section before
+ * relocation, silently disarming the probe (v7 task-2 review).  Hence a
+ * helper both create paths execute, not a static array. */
+static inline void depth_probe_reference(void)
+{
+    (void)*(volatile const uint32_t *)&LV_DEPTH_PROBE(LV_COLOR_DEPTH);
+    (void)*(volatile const uint32_t *)&PANEL_BPP_PROBE(PANEL_BYTES_PER_PIXEL);
+}
 
 /* Not volatile: with LV_USE_OS == LV_OS_NONE, flush_cb runs only from
  * lv_timer_handler() and the reader is the same thread context, so there is no
@@ -68,6 +73,7 @@ static void mipi_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px
 
 lv_display_t *lvgl_mipi_panel_create(DisplayClass &display)
 {
+    depth_probe_reference();   /* live-code link probe -- see its definition */
     /* Enforce the header's precondition rather than only documenting it: a
      * failed Display.begin() leaves framebuffer() null, and handing LVGL a null
      * draw buffer faults somewhere inside the renderer with no token to explain
@@ -221,6 +227,7 @@ static void db_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_m
 
 lv_display_t *lvgl_mipi_panel_create_db(DisplayClass &display)
 {
+    depth_probe_reference();   /* live-code link probe -- see its definition */
     LV_ASSERT_NULL(display.framebuffer());   /* Display.begin() must have succeeded */
     LV_ASSERT(display.width() == PANEL_WIDTH && display.height() == PANEL_HEIGHT);
 

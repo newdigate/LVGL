@@ -1,5 +1,6 @@
 /* lvgl_mipi_panel.h - LVGL display binding for a MIPI-DSI panel on the i.MX
- * RT1176 (RGB565, MipiDisplay/LCDIFv2). Panel-neutral: the geometry comes from
+ * RT1176 (MipiDisplay/LCDIFv2; the color depth is the LV_COLOR_DEPTH /
+ * PANEL_BYTES_PER_PIXEL pair the build selects). Panel-neutral: the geometry comes from
  * the DisplayClass instance and from the selected panel's panel_config.h, so
  * this binding serves whichever panel MipiDisplay was built for.
  * SPDX-License-Identifier: MIT */
