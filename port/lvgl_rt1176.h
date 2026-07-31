@@ -12,6 +12,14 @@
 #include <stddef.h>
 #include "lvgl.h"
 
+/* v7 cross-TU depth probe, LVGL side: lvgl_rt1176.cpp (compiled INTO the LVGL
+ * library target) defines this symbol for the depth the library objects saw;
+ * the display binding (compiled into the example) references it for its own
+ * depth.  A mismatch is an undefined reference, not a silent ABI break. */
+#define LV_DEPTH_PROBE_(n) lvgl_compiled_with_depth_##n
+#define LV_DEPTH_PROBE(n)  LV_DEPTH_PROBE_(n)
+extern "C" const uint32_t LV_DEPTH_PROBE(LV_COLOR_DEPTH);
+
 /* lv_init() + lv_tick_set_cb(millis). Call once, before creating a display. */
 void lvgl_rt1176_begin();
 

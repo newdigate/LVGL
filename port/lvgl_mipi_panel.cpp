@@ -9,12 +9,25 @@
  * blitting binding: a padded draw-buffer stride here would not merely produce a
  * wrong checksum, it would write skewed pixels into the buffer the LCDIFv2 is
  * displaying. LVGL's stride must match the panel pitch exactly, which for an
- * unpadded PANEL_PITCH_BYTES means no draw-buffer stride padding and 2 B/px. */
+ * unpadded PANEL_PITCH_BYTES means no draw-buffer stride padding and a pixel
+ * size the two sides agree on -- 2 B/px (RGB565) or 4 B/px (XRGB8888). */
 static_assert(LV_DRAW_BUF_STRIDE_ALIGN == 1, "direct render assumes unpadded stride");
-static_assert(LV_COLOR_DEPTH == 16, "direct render assumes RGB565");
-static_assert(PANEL_PITCH_BYTES == PANEL_WIDTH * 2u,
+static_assert((LV_COLOR_DEPTH == 16 || LV_COLOR_DEPTH == 32) &&
+              ((LV_COLOR_DEPTH == 16) == (PANEL_BYTES_PER_PIXEL == 2)),
+              "LV_COLOR_DEPTH and PANEL_BYTES_PER_PIXEL must be set as a pair: "
+              "16/2 (RGB565, the default) or 32/4 (XRGB8888) -- a half-migrated "
+              "example must not compile");
+static_assert(PANEL_PITCH_BYTES == PANEL_WIDTH * (LV_COLOR_DEPTH / 8u),
               "direct render draws at LVGL's own stride; a padded panel pitch "
               "would skew every line and must be handled explicitly");
+
+/* Link-time depth probes (see lvgl_rt1176.h / lcdifv2.h): referencing the
+ * symbols for THIS translation unit's values makes a cross-library depth
+ * mismatch an undefined reference at link time. */
+static const void *const s_depth_probes[] __attribute__((used)) = {
+    (const void *)&LV_DEPTH_PROBE(LV_COLOR_DEPTH),
+    (const void *)&PANEL_BPP_PROBE(PANEL_BYTES_PER_PIXEL),
+};
 
 /* Not volatile: with LV_USE_OS == LV_OS_NONE, flush_cb runs only from
  * lv_timer_handler() and the reader is the same thread context, so there is no

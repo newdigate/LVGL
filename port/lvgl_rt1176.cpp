@@ -4,6 +4,9 @@
 #include "lvgl_rt1176.h"
 #include "lvgl_rt1176_assert.h"
 
+/* The v7 depth probe's definition -- see the header. */
+extern "C" const uint32_t LV_DEPTH_PROBE(LV_COLOR_DEPTH) = LV_COLOR_DEPTH;
+
 static const uint32_t FNV1A_OFFSET = 2166136261u;
 static const uint32_t FNV1A_PRIME  = 16777619u;
 static uint32_t s_sum   = FNV1A_OFFSET;
