@@ -672,11 +672,27 @@
 #define LV_ATTRIBUTE_EXTERN_DATA
 
 /** Use `float` as `lv_value_precise_t` */
+/* v8: #ifndef-guarded for the same per-example opt-in as LV_USE_DRAW_VG_LITE.
+ *
+ * ★ THIS ONE CHANGES PIXELS. lv_value_precise_t goes from integer to float, so
+ * anything carrying an angle or coordinate through it rounds differently --
+ * synthui_knob's arc start/end angles among them. Every existing display gate
+ * has SOFTWARE goldens recorded with this at 0, so flipping it globally would
+ * move goldens across the tree and each move would have to be re-confirmed on
+ * glass. Default stays 0; only a VGLITE example turns it on. */
+#ifndef LV_USE_FLOAT
 #define LV_USE_FLOAT            0
+#endif
 
 /** Enable matrix support
  *  - Requires `LV_USE_FLOAT = 1` */
+/* Required by LVGL's VG_LITE backend: lv_matrix_t is declared only under this
+ * switch, and the backend's headers use it by value, so with it off the
+ * failure is `invalid use of incomplete typedef lv_matrix_t` -- which points
+ * at a type rather than at a missing config line. */
+#ifndef LV_USE_MATRIX
 #define LV_USE_MATRIX           0
+#endif
 
 /** Include `lvgl_private.h` in `lvgl.h` to access internal data and functions by default */
 #ifndef LV_USE_PRIVATE_API
