@@ -1,8 +1,7 @@
 MIT License
 
-Copyright (c) 2025 LVGL Kft (the vendored `lvgl/` tree)
-Copyright (c) 2026 Nicholas Newdigate (the i.MX RT1176 port: `port/` and the
-top level of this repository)
+Copyright (c) 2025 LVGL Kft
+Copyright (c) 2026 Nicholas Newdigate
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -23,6 +23,13 @@ why `LICENSE` carries a single MIT body with both copyright lines. Upstream's
 own licence file is also retained verbatim at `lvgl/LICENCE.txt` — that copy,
 not this summary, is the authoritative reproduction of the upstream notice.
 
+Which holder covers which path is recorded HERE and deliberately not in
+`LICENSE`: automated detectors strip whole lines that match a copyright
+pattern, so an annotation appended to a copyright line — or worse, wrapped onto
+a continuation line — is read as licence body text and the match fails. That is
+not hypothetical; it is why this repository still reported NOASSERTION after
+the first attempt at this split.
+
 `VENDORING.md` records the upstream provenance and the components pruned on
 vendoring for licensing reasons.
 
