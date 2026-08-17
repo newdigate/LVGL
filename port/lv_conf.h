@@ -362,7 +362,15 @@
  * evkb tree reaches the RT1176's Vivante GC355. Nothing pruned is touched.
  * It is 0 here by SCOPE (this port is software render), not by licence.
  * The switch that must not move is LV_USE_VG_LITE_DRIVER. See VENDORING.md. */
+/* v8: #ifndef-guarded so an example can opt in with -DLV_USE_DRAW_VG_LITE=1,
+ * the same per-example override pattern LV_COLOR_DEPTH uses above. A bare -D
+ * cannot beat a hard #define here -- the header would simply win -- so the
+ * guard is what makes import_evkb_lvgl(VGLITE) possible at all. Default stays
+ * 0: every existing display gate has recorded SOFTWARE goldens, and the GPU
+ * path will not reproduce them (hardware AA != LVGL's mask arithmetic). */
+#ifndef LV_USE_DRAW_VG_LITE
 #define LV_USE_DRAW_VG_LITE 0
+#endif
 #if LV_USE_DRAW_VG_LITE
     /** Enable VG-Lite custom external 'gpu_init()' function */
     #define LV_VG_LITE_USE_GPU_INIT 0
