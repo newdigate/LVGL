@@ -391,7 +391,10 @@
     #define LV_VG_LITE_USE_ASSERT 0
 
     /** VG-Lite flush commit trigger threshold. GPU will try to batch these many draw tasks. */
+    /* #ifndef so the build system can tune it per-target. */
+    #ifndef LV_VG_LITE_FLUSH_MAX_COUNT
     #define LV_VG_LITE_FLUSH_MAX_COUNT 8
+    #endif
 
     /** Enable border to simulate shadow.
      *  NOTE: which usually improves performance,
@@ -399,11 +402,17 @@
     #define LV_VG_LITE_USE_BOX_SHADOW 1
 
     /** VG-Lite gradient maximum cache number.
-     *  @note  The memory usage of a single gradient image is 4K bytes. */
+     *  @note  The memory usage of a single gradient image is 4K bytes.
+     * #ifndef so the build system can tune it per-target. */
+    #ifndef LV_VG_LITE_GRAD_CACHE_CNT
     #define LV_VG_LITE_GRAD_CACHE_CNT 32
+    #endif
 
-    /** VG-Lite stroke maximum cache number. */
+    /** VG-Lite stroke maximum cache number.
+     * #ifndef so the build system can tune it per-target. */
+    #ifndef LV_VG_LITE_STROKE_CACHE_CNT
     #define LV_VG_LITE_STROKE_CACHE_CNT 32
+    #endif
 
     /** Remove VLC_OP_CLOSE path instruction (Workaround for NXP)
      * #ifndef so the build system can force it on per-target. Measured on
