@@ -15,10 +15,14 @@
  *   LV_MEM_SIZE           1 MB   + LV_ATTRIBUTE_LARGE_RAM_ARRAY -> SDRAM
  *   LV_ATTRIBUTE_LARGE_RAM_ARRAY  places that 1 MB pool in external SDRAM
  *   LV_USE_DRAW_PXP       0      v1 is software render (INERT -- see its site)
- *   LV_USE_NEMA_GFX       0  \
- *   LV_USE_DRAW_VG_LITE   0   |  MUST STAY 0 -- source pruned on vendoring
+ *   LV_USE_NEMA_GFX       0  \  MUST STAY 0 -- source pruned on vendoring
  *   LV_USE_VG_LITE_DRIVER 0   |  for LICENCE reasons. See VENDORING.md.
  *   LV_USE_FS_FROGFS      0  /
+ *   LV_USE_DRAW_VG_LITE   0      off by SCOPE, not by licence (corrected
+ *                                2026-08-16): with LV_USE_VG_LITE_DRIVER 0 it
+ *                                includes <vg_lite.h> from the include path,
+ *                                so it may legitimately go to 1 against the
+ *                                external MIT driver. See its site.
  *   LV_FONT_MONTSERRAT_28 1      heading text (14 is already on by default)
  *   LV_ASSERT_HANDLER            print a token before halting (see its site)
  *   LV_BUILD_EXAMPLES     0      lvgl/examples was pruned on vendoring
@@ -349,9 +353,15 @@
 #define LV_USE_DRAW_SDL 0
 
 /** Use VG-Lite GPU. */
-/* MUST STAY 0: source pruned on vendoring (licence) -- see VENDORING.md.
- * src/draw/vg_lite sources include libs/vg_lite_driver/inc/vg_lite.h, deleted
- * on vendoring. Enabling this fails at compile time with a missing header. */
+/* ★ CORRECTED 2026-08-16. This used to read "MUST STAY 0: source pruned on
+ * vendoring (licence) ... enabling this fails at compile time with a missing
+ * header". That is only true when LV_USE_VG_LITE_DRIVER (below) is 1.
+ * src/draw/vg_lite selects its vg_lite.h three ways and the DEFAULT branch is
+ * #include <vg_lite.h> from the include path, so this switch can legitimately
+ * go to 1 against an externally supplied MIT driver -- which is exactly how the
+ * evkb tree reaches the RT1176's Vivante GC355. Nothing pruned is touched.
+ * It is 0 here by SCOPE (this port is software render), not by licence.
+ * The switch that must not move is LV_USE_VG_LITE_DRIVER. See VENDORING.md. */
 #define LV_USE_DRAW_VG_LITE 0
 #if LV_USE_DRAW_VG_LITE
     /** Enable VG-Lite custom external 'gpu_init()' function */
@@ -383,7 +393,10 @@
 
     /** Enable usage of the LVGL's built-in vg_lite driver */
     /* MUST STAY 0: source pruned on vendoring (licence) -- see VENDORING.md.
-     * (Unreachable today anyway: LV_USE_DRAW_VG_LITE above is 0.) */
+     * This is the real licence constraint of the two: setting it re-points
+     * src/draw/vg_lite's includes at libs/vg_lite_driver/, the dual-licensed
+     * copy that was deleted. Leave it 0 even when LV_USE_DRAW_VG_LITE goes to
+     * 1 -- that is what selects the external MIT driver instead. */
     #define LV_USE_VG_LITE_DRIVER  0
     #if LV_USE_VG_LITE_DRIVER
         /** Used to pick the correct GPU series folder valid options are gc255, gc355 and gc555*/

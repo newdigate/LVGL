@@ -19,7 +19,24 @@ breaks the MIT/BSD-only guarantee this tree exists to uphold.
 
 - `lvgl/src/libs/vg_lite_driver/` — VeriSilicon VGLite kernel, dual-licensed
   (trips `tools/license-audit.sh` Part 1 on 5 files under `VGLiteKernel/`).
-  RT1176 has no VGLite GPU, so it can never be linked here.
+  ~~RT1176 has no VGLite GPU, so it can never be linked here.~~
+
+  > ★ **CORRECTION 2026-08-16 — "RT1176 has no VGLite GPU" was FALSE.** The
+  > RT1176 has a Vivante **GC355** GPU2D (`0x4180_0000`, IRQ 60,
+  > `GPU2D_CLK_ROOT`), and it has since been made to render: the evkb tree's
+  > `display/vglite_probe` reads chip ID `0x355` off the silicon and draws to
+  > the RK055 panel.
+  >
+  > **The prune stays, and the licence reason above is the only reason it ever
+  > needed.** The dual-licensed text is what disqualifies *this copy*; NXP ships
+  > the same driver MIT-only, and that is the one the evkb tree vendors (its own
+  > `VGLite` sibling repo, with its own `VENDORING.md`). Enabling the GPU
+  > required un-pruning nothing.
+  >
+  > Worth stating plainly because the wrong premise was load-bearing elsewhere:
+  > it was reused to argue GPU acceleration was impossible on this board, which
+  > cost real time. A claim can be false while the conclusion it was offered for
+  > is right — check which one you are relying on.
 - `lvgl/src/libs/frogfs/` — MPL-2.0 (weak copyleft). Unused. Its licence header
   is now detected by the gate: `tools/license-audit.sh` matches MPL as well as
   GNU GPL/LGPL, and treats it as a failure.
@@ -55,16 +72,39 @@ that no longer exist:
 | Referencing file | Include | Guard |
 |---|---|---|
 | `src/libs/fsdrv/lv_fs_frogfs.c:13` | `../frogfs/include/frogfs/frogfs.h` | `#if LV_USE_FS_FROGFS` (line 11) |
-| `src/draw/vg_lite/lv_draw_vg_lite_type.h:28` | `../../libs/vg_lite_driver/inc/vg_lite.h` | `#if LV_USE_DRAW_VG_LITE` |
-| `src/draw/vg_lite/lv_vg_lite_utils.h:28` | `../../libs/vg_lite_driver/inc/vg_lite.h` | `#if LV_USE_DRAW_VG_LITE` |
+| `src/draw/vg_lite/lv_draw_vg_lite_type.h:28` | `../../libs/vg_lite_driver/inc/vg_lite.h` | `#if LV_USE_DRAW_VG_LITE` **and** `LV_USE_VG_LITE_DRIVER` |
+| `src/draw/vg_lite/lv_vg_lite_utils.h:28` | `../../libs/vg_lite_driver/inc/vg_lite.h` | `#if LV_USE_DRAW_VG_LITE` **and** `LV_USE_VG_LITE_DRIVER` |
 | `src/draw/nema_gfx/*.c` | `nema_core.h`, `nema_vg.h`, … (build include path) | `#if LV_USE_NEMA_GFX` |
 
 Every one is `#if`-guarded and every guard is off, so the build is correct today.
-But that means **`LV_USE_DRAW_VG_LITE`, `LV_USE_FS_FROGFS` and `LV_USE_NEMA_GFX`
-must all stay 0** — and not merely as a config preference. Turning any of them on
-is not a config change; it is a missing-source build failure, because the code it
-needs was deliberately deleted for licence reasons. Do not "fix" such a failure
-by restoring the directory.
+**`LV_USE_FS_FROGFS` and `LV_USE_NEMA_GFX` must stay 0** — and not merely as a
+config preference. Turning either on is not a config change; it is a
+missing-source build failure, because the code it needs was deliberately deleted
+for licence reasons. Do not "fix" such a failure by restoring the directory.
+
+> ★ **`LV_USE_DRAW_VG_LITE` is the exception, corrected 2026-08-16.** It used to
+> be listed above alongside the other two, on the reasoning that turning it on
+> could only end in a missing-source failure. That is true only when
+> `LV_USE_VG_LITE_DRIVER` is 1. Both files above select their `vg_lite.h` three
+> ways, and the **default branch is `#include <vg_lite.h>` from the include
+> path**:
+>
+> ```c
+> #if LV_USE_VG_LITE_THORVG      → others/vg_lite_tvg/vg_lite.h
+> #elif LV_USE_VG_LITE_DRIVER    → libs/vg_lite_driver/inc/vg_lite.h   (pruned)
+> #else                          → #include <vg_lite.h>                (external)
+> #endif
+> ```
+>
+> So `LV_USE_DRAW_VG_LITE=1` with `LV_USE_VG_LITE_DRIVER=0` compiles against an
+> externally supplied driver and touches nothing pruned. That is the sanctioned
+> hook, and it is how the evkb tree reaches the GC355 — the MIT driver lives in
+> its own `VGLite` sibling repo and arrives on the include path. **No LVGL
+> source edit, no un-pruning, firewall untouched.**
+>
+> What must stay 0 is **`LV_USE_VG_LITE_DRIVER`**. Setting that one restores the
+> dependency on the dual-licensed copy that was pruned, which is the actual
+> licence hazard the original rule was reaching for.
 
 ## Retained with a written justification: the one MPL file
 
@@ -136,8 +176,13 @@ retained for reference and for upstream fidelity, not because it is built.
    unacceptable, so read any new licence file the audit accepts.
    (`tools/license-audit.test.sh` is the negative-test suite proving both checks
    actually fire; run it after touching the audit.)
-5. Confirm `LV_USE_DRAW_VG_LITE`, `LV_USE_FS_FROGFS` and `LV_USE_NEMA_GFX` are
-   still 0 in `port/lv_conf.h`.
+5. Confirm `LV_USE_VG_LITE_DRIVER`, `LV_USE_FS_FROGFS` and `LV_USE_NEMA_GFX` are
+   still 0 in `port/lv_conf.h`. (This step used to name `LV_USE_DRAW_VG_LITE`;
+   corrected 2026-08-16 — see the note under "These prunes delete code that
+   `src/` still references". `LV_USE_DRAW_VG_LITE` is a scope choice, and it
+   will legitimately go to 1 when LVGL's VGLite backend is enabled against the
+   external MIT driver. `LV_USE_VG_LITE_DRIVER` is the one that must not move,
+   because it re-points the includes at the pruned dual-licensed copy.)
 6. Re-record the golden `LVGL_SUM` values in the example gates — a renderer or
    font change legitimately changes them:
    - `examples/display/lvgl_ili9341_test/run_qemu.sh` — currently `0xA087211C`.
