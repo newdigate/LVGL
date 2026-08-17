@@ -11,7 +11,24 @@
  * displaying. LVGL's stride must match the panel pitch exactly, which for an
  * unpadded PANEL_PITCH_BYTES means no draw-buffer stride padding and a pixel
  * size the two sides agree on -- 2 B/px (RGB565) or 4 B/px (XRGB8888). */
-static_assert(LV_DRAW_BUF_STRIDE_ALIGN == 1, "direct render assumes unpadded stride");
+/* ★ RELAXED 2026-08-17 from `LV_DRAW_BUF_STRIDE_ALIGN == 1`. That was a proxy
+ * for the real invariant and too strict: what DIRECT mode actually requires is
+ * that LVGL's stride for the screen buffer EQUAL the panel pitch, i.e. that
+ * rounding the pitch up to the alignment does not pad it. `== 1` guarantees
+ * that trivially, but so does any alignment the pitch already divides by --
+ * and 720 x 4 = 2880 is 45 x 64.
+ *
+ * This matters because the GC355 reports gcFEATURE_BIT_VG_16PIXELS_ALIGN=1
+ * (measured on silicon), so the VGLITE build needs a 64-byte draw-buffer
+ * stride for its GLYPH and LAYER buffers -- without it small blits smear.
+ * Those are separate allocations from the screen buffer; only the screen
+ * buffer is constrained here. Keeping `== 1` would have forced a choice
+ * between a correct GPU blit path and a correct direct-render panel, when the
+ * arithmetic says both hold at once. */
+static_assert(PANEL_PITCH_BYTES % LV_DRAW_BUF_STRIDE_ALIGN == 0,
+              "direct render needs the panel pitch to be a multiple of the "
+              "draw-buffer stride alignment, or LVGL pads the scanout buffer "
+              "and skews every line");
 static_assert((LV_COLOR_DEPTH == 16 || LV_COLOR_DEPTH == 32) &&
               ((LV_COLOR_DEPTH == 16) == (PANEL_BYTES_PER_PIXEL == 2)),
               "LV_COLOR_DEPTH and PANEL_BYTES_PER_PIXEL must be set as a pair: "

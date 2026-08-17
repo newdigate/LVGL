@@ -77,12 +77,25 @@ void lv_draw_vg_lite_fill(lv_draw_task_t * t, const lv_draw_fill_dsc_t * dsc, co
 
     if(dsc->grad.dir != LV_GRAD_DIR_NONE) {
 #if LV_USE_VECTOR_GRAPHIC
+        /* rt1176 fork fix (upstream drops dsc->opa on this branch entirely):
+         * lv_grad_dsc_t carries no overall opacity and the helper takes no
+         * opa parameter, so fold dsc->opa into the stop opacities. The
+         * software renderer applies dsc->opa after gradient evaluation --
+         * arithmetically the same blend. Without this, e.g. a disabled
+         * widget's gradient face renders fully opaque on the GPU while
+         * every other primitive dims. Measured on GC355 silicon. */
+        lv_grad_dsc_t grad = dsc->grad;
+        if(dsc->opa < LV_OPA_MAX) {
+            for(uint8_t i = 0; i < grad.stops_count; i++) {
+                grad.stops[i].opa = LV_OPA_MIX2(grad.stops[i].opa, dsc->opa);
+            }
+        }
         lv_vg_lite_draw_grad_helper(
             u->grad_ctx,
             &u->target_buffer,
             lv_vg_lite_path_get_path(path),
             coords,
-            &dsc->grad,
+            &grad,
             &matrix,
             VG_LITE_FILL_EVEN_ODD,
             VG_LITE_BLEND_SRC_OVER);

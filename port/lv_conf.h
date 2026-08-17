@@ -171,10 +171,22 @@
  *========================*/
 
 /** Align stride of all layers and images to this bytes */
+/* v8: #ifndef-guarded for the VGLITE opt-in.
+ * ★ 1 is right for the software renderer -- any stride works -- and WRONG for
+ * the GC355, which reports gcFEATURE_BIT_VG_16PIXELS_ALIGN=1 (measured on
+ * silicon 2026-08-17). LVGL allocates glyph and layer buffers with these, so a
+ * 16-pixel-aligned GPU was being handed 4-byte-aligned rows. Symptom: vector
+ * paths render clean while GLYPHS and small blits smear, each trailing
+ * repeated horizontal streaks -- the signature of a per-row stride mismatch.
+ * The VGLITE build sets 64 (16 px x 4 B at LV_COLOR_DEPTH 32). */
+#ifndef LV_DRAW_BUF_STRIDE_ALIGN
 #define LV_DRAW_BUF_STRIDE_ALIGN                1
+#endif
 
 /** Align start address of draw_buf addresses to this bytes*/
+#ifndef LV_DRAW_BUF_ALIGN
 #define LV_DRAW_BUF_ALIGN                       4
+#endif
 
 /** Using matrix for transformations.
  * Requirements:
@@ -393,11 +405,29 @@
     /** VG-Lite stroke maximum cache number. */
     #define LV_VG_LITE_STROKE_CACHE_CNT 32
 
-    /** Remove VLC_OP_CLOSE path instruction (Workaround for NXP) **/
+    /** Remove VLC_OP_CLOSE path instruction (Workaround for NXP)
+     * #ifndef so the build system can force it on per-target. Measured on
+     * the GC355 (RT1176): a rect with BOTH a gradient fill and a border --
+     * the synthui_knob face recipe -- rendered with its interior flooded in
+     * border colour plus banding and rightward streak artifacts, while a
+     * borderless gradient rect beside it was pixel-perfect. Every API call
+     * returned success. */
+    #ifndef LV_VG_LITE_DISABLE_VLC_OP_CLOSE
     #define LV_VG_LITE_DISABLE_VLC_OP_CLOSE 0
+    #endif
 
-    /** Disable linear gradient extension for some older versions of drivers. */
+    /** Disable linear gradient extension for some older versions of drivers.
+     * #ifndef so the build system can force it on: the GC355 v7 driver's
+     * vg_lite_update_linear_grad() consumes grad->matrix at update time
+     * (NXP's own example sets the matrix immediately before the call), but
+     * LVGL only assigns it at draw time -- update sees the zeroed matrix and
+     * returns INVALID_ARGUMENT, after which the create-failure path trips
+     * the grad_item_pool_free ctx assert and HALTS the firmware. LVGL's
+     * sequence fits the newer GC555-style API; on GC355 the basic 256-entry
+     * ramp path is the working one. */
+    #ifndef LV_VG_LITE_DISABLE_LINEAR_GRADIENT_EXT
     #define LV_VG_LITE_DISABLE_LINEAR_GRADIENT_EXT 0
+    #endif
 
     /** Enable usage of the LVGL's built-in vg_lite driver */
     /* MUST STAY 0: source pruned on vendoring (licence) -- see VENDORING.md.
@@ -485,8 +515,16 @@
  * Logging
  *-----------*/
 
-/** Enable log module */
+/** Enable log module
+ * #ifndef so a diagnostic build can force it on (-DLV_USE_LOG=1) and route
+ * lv_log through a RAM ring buffer read over SWD -- the bench VCOM is not
+ * always available, and the VG_LITE backend reports every skipped or failed
+ * draw through LV_LOG_WARN/ERROR, which with logging off are silently
+ * discarded. A day of this phase went to artifacts whose explanation LVGL
+ * was already printing into the void. */
+#ifndef LV_USE_LOG
 #define LV_USE_LOG 0
+#endif
 #if LV_USE_LOG
     /** Set value to one of the following levels of logging detail:
      *  - LV_LOG_LEVEL_TRACE    Log detailed information.
@@ -1103,8 +1141,17 @@
 #define LV_USE_GLTF  0
 
 /** Enable Vector Graphic APIs
- *  Requires `LV_USE_MATRIX = 1` */
+ *  Requires `LV_USE_MATRIX = 1`
+ * #ifndef so a VGLITE build can force it on: the VG_LITE backend compiles
+ * its GRADIENT support (lv_vg_lite_grad.c, and the gradient branch of
+ * lv_draw_vg_lite_fill.c) only under this switch. With it off the build
+ * succeeds and every gradient fill is silently SKIPPED at draw time --
+ * surfaces are absent, not wrong-shaped, which presents as wrong colours
+ * (a knob face became its translucent cap composited straight onto the
+ * screen background). ThorVG stays off either way. */
+#ifndef LV_USE_VECTOR_GRAPHIC
 #define LV_USE_VECTOR_GRAPHIC  0
+#endif
 
 /** Enable ThorVG (vector graphics library) from the src/libs folder.
  *  Requires LV_USE_VECTOR_GRAPHIC */
