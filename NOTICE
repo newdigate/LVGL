@@ -1,0 +1,83 @@
+LVGL (RT1176 port) — attribution and third-party notices
+========================================================
+
+`LICENSE` is the MIT text that governs this repository. This file records who
+holds copyright over what, and the licences of the third-party code bundled
+inside the vendored tree. Both were previously spelled out inside `LICENSE`
+itself; they moved here so that automated licence detection can identify the
+repository (a file containing a preamble and two full licence texts matches no
+known licence, and GitHub reported NOASSERTION — measured, not guessed).
+
+Two bodies of work, both MIT
+----------------------------
+
+  * `lvgl/` — the vendored upstream LVGL tree.
+    Copyright (c) 2025 LVGL Kft.
+
+  * `port/`, and everything else at the top level of this repository — the
+    i.MX RT1176 port.
+    Copyright (c) 2026 Nicholas Newdigate.
+
+The licence text is identical for both; only the attribution differs, which is
+why `LICENSE` carries a single MIT body with both copyright lines. Upstream's
+own licence file is also retained verbatim at `lvgl/LICENCE.txt` — that copy,
+not this summary, is the authoritative reproduction of the upstream notice.
+
+`VENDORING.md` records the upstream provenance and the components pruned on
+vendoring for licensing reasons.
+
+Third-party code inside `lvgl/`
+-------------------------------
+
+Individual directories under `lvgl/src/` carry their own licence files, which
+govern their own files. All are permissive; none is copyleft. As vendored:
+
+    lvgl/src/stdlib/builtin/LICENSE_SPRINTF.txt    MIT
+    lvgl/src/stdlib/builtin/LICENSE_TLSF.txt       BSD
+    lvgl/src/libs/expat/LICENSE.txt                MIT
+    lvgl/src/libs/FT800-FT813/LICENSE              MIT
+    lvgl/src/libs/lz4/LICENSE.txt                  BSD 2-Clause
+    lvgl/src/libs/qrcode/LICENSE.txt               MIT
+    lvgl/src/libs/lodepng/LICENSE.txt              zlib-style
+    lvgl/src/libs/barcode/LICENSE.txt              BSD
+    lvgl/src/libs/thorvg/LICENSE.txt               MIT
+    lvgl/src/libs/tjpgd/LICENSE.txt                custom permissive (ChaN)
+    lvgl/src/libs/tiny_ttf/LICENSE.txt             MIT
+
+`lvgl/src/libs/freetype/LiberationSans-LICENSE.txt` accompanies the bundled
+font binary and governs it.
+
+Apache-2.0 files (three), none of which contribute code here
+------------------------------------------------------------
+
+    lvgl/src/osal/lv_cmsis_rtos2.c
+    lvgl/src/osal/lv_cmsis_rtos2.h
+    lvgl/src/drivers/opengles/glad/include/EGL/eglplatform.h
+
+The two headers are never included by this port. The `.c` IS compiled — the
+consuming build globs `lvgl/src/**.c` — but its entire body sits behind
+`#if LV_USE_OS == LV_OS_CMSIS_RTOS2`, and this port sets `LV_USE_OS 0`. Its
+object therefore defines **zero symbols**, verified with `arm-none-eabi-nm
+--defined-only`, so no Apache-2.0 code reaches any firmware image built from
+this repository.
+
+That verification is the point, not the conclusion. "It is behind an `#if`" is
+an argument; an object file with no symbols in it is evidence. The consuming
+tree's `tools/license-audit.sh` applies the same empty-object rule elsewhere
+for the same reason. If a future `lv_conf.h` ever selects CMSIS-RTOS2, this
+paragraph stops being true and Apache-2.0 code starts linking — re-run the
+check rather than trusting this note.
+
+Re-vendoring
+------------
+
+Re-run the surveys behind the two sections above and reconcile this file with
+what they print:
+
+    find lvgl -iname 'licen*' -o -iname 'copying*'
+    grep -rhoE "SPDX-License-Identifier: *[A-Za-z0-9.+-]+" lvgl/src | sort | uniq -c
+
+A copyleft grep alone is not sufficient. It answers "is there GPL/LGPL/MPL
+here", which is a narrower question than "is this repository the licence it
+claims" — a distinction that cost a day when a sibling repository advertised
+"MIT throughout" while shipping two Apache-2.0 files.

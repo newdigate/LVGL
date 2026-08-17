@@ -63,6 +63,16 @@ The worked example is `examples/display/lvgl_smoke_test` in the evkb repo.
 
 ## Licence
 
-LVGL is MIT — see [`LICENSE`](LICENSE). This tree is deliberately MIT/BSD-only
-and is swept by the evkb project's `tools/license-audit.sh`; copyleft sources are
-pruned rather than allowlisted.
+MIT — see [`LICENSE`](LICENSE), with attribution and third-party notices in
+[`NOTICE`](NOTICE): the vendored `lvgl/` tree is © LVGL Kft, the RT1176 port is
+its own copyright, and the libraries bundled under `lvgl/src/` carry their own
+permissive licences (MIT, BSD, zlib-style).
+
+This tree is permissive-only and is swept by the evkb project's
+`tools/license-audit.sh`; copyleft sources are pruned rather than allowlisted.
+Three vendored files are **Apache-2.0** rather than MIT/BSD
+(`lvgl/src/osal/lv_cmsis_rtos2.{c,h}` and one glad EGL header). None of them
+contributes code here — the `.c` compiles to an object defining zero symbols,
+because its body is behind `#if LV_USE_OS == LV_OS_CMSIS_RTOS2` and this port
+sets `LV_USE_OS 0`. `NOTICE` records how that was verified and when it would
+stop being true.
